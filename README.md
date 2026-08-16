@@ -1,6 +1,8 @@
 # PDF-Page-Excluder
 PDF Page Excluder
 
+DEMO: https://iachindigital.github.io/PDF-Page-Excluder/index.html
+
 PDF 智能页码计算器 (PDF Page Calculator)
 这是一个轻量级、现代化的纯前端 Web 工具，旨在帮助用户快速计算 PDF 文档中需要打印的页码范围。
 
