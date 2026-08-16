@@ -3,127 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 逆向页码计算器</title>
+    <title>PDF 逆向页码计算器 - 专业版</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
     <div class="max-w-xl w-full bg-white rounded-xl shadow-md p-6 sm:p-8">
         <h1 class="text-2xl font-bold text-gray-800 mb-2">PDF 逆向页码计算器</h1>
-        <p class="text-gray-600 text-sm mb-6">输入 PDF 总页数以及**不打印**的页数，自动生成可以直接复制到打印机里的剩余页码。</p>
+        <p class="text-gray-600 text-sm mb-6">输入页数，实时生成打印页码，支持奇偶筛选。</p>
 
         <div class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">PDF 总页数</label>
-                <input type="number" id="totalPage" min="1" placeholder="例如：20" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <label class="block text-sm font-medium text-gray-700">PDF 总页数</label>
+                <input type="number" id="totalPage" oninput="runCalculation()" placeholder="例如：20" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">不需要打印的页数（支持逗号和连字符）</label>
-                <input type="text" id="excludePages" placeholder="例如：1-3, 5, 7-10" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <span class="text-xs text-gray-400 mt-1 block">提示：支持单页（如 5）和连续页（如 4-10），用英文逗号分隔。</span>
+                <label class="block text-sm font-medium text-gray-700">不需要打印的页数</label>
+                <input type="text" id="excludePages" oninput="runCalculation()" placeholder="例如：1-3, 5, 7-10" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
 
-            <button onclick="runCalculation()" 
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition duration-200">
-                生成打印页码
-            </button>
+            <!-- 选项区域 -->
+            <div class="flex items-center space-x-4 text-sm text-gray-600">
+                <label class="flex items-center"><input type="radio" name="parity" value="all" checked onchange="runCalculation()" class="mr-2"> 全部</label>
+                <label class="flex items-center"><input type="radio" name="parity" value="odd" onchange="runCalculation()" class="mr-2"> 仅奇数</label>
+                <label class="flex items-center"><input type="radio" name="parity" value="even" onchange="runCalculation()" class="mr-2"> 仅偶数</label>
+                <button onclick="resetAll()" class="ml-auto text-red-500 hover:text-red-600 text-xs">清空重置</button>
+            </div>
         </div>
 
         <div id="resultContainer" class="mt-6 hidden">
-            <label class="block text-sm font-medium text-gray-700 mb-1">可直接复制的打印页码：</label>
-            <div class="flex items-center space-x-2">
-                <input type="text" id="resultOutput" readonly 
-                    class="w-full bg-gray-100 px-3 py-2 border border-gray-300 rounded-lg text-gray-800 font-mono focus:outline-none">
-                <button onclick="copyResult()" 
-                    class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm transition duration-200 whitespace-nowrap">
-                    复制
-                </button>
+            <label class="block text-sm font-medium text-gray-700">可直接复制的打印页码：</label>
+            <div class="flex items-center space-x-2 mt-1">
+                <input type="text" id="resultOutput" readonly class="w-full bg-gray-100 px-3 py-2 border rounded-lg font-mono text-sm">
+                <button id="copyBtn" onclick="copyResult()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm transition">复制</button>
             </div>
+            <p id="stats" class="text-xs text-gray-500 mt-2"></p>
             <p id="errorMsg" class="text-xs text-red-500 mt-2 hidden"></p>
         </div>
     </div>
 
     <script>
         function runCalculation() {
-            const total = parseInt(document.getElementById('totalPage').value);
-            const excludeStr = document.getElementById('excludePages').value;
+            let totalVal = document.getElementById('totalPage').value;
+            let excludeStr = document.getElementById('excludePages').value;
+            
+            // 自动清洗：中英文标点转换
+            excludeStr = excludeStr.replace(/，/g, ',').replace(/－/g, '-').replace(/ /g, '');
+            
+            const total = parseInt(totalVal);
             const resultContainer = document.getElementById('resultContainer');
             const resultOutput = document.getElementById('resultOutput');
             const errorMsg = document.getElementById('errorMsg');
-
-            resultContainer.classList.remove('hidden');
-            errorMsg.classList.add('hidden');
+            const stats = document.getElementById('stats');
+            const parity = document.querySelector('input[name="parity"]:checked').value;
 
             if (isNaN(total) || total <= 0) {
-                errorMsg.innerText = "请输入有效的 PDF 总页数！";
-                errorMsg.classList.remove('hidden');
-                resultOutput.value = "";
+                resultContainer.classList.add('hidden');
                 return;
             }
 
-            // 1. 解析排除的页码
+            resultContainer.classList.remove('hidden');
             let excludeSet = new Set();
-            if (excludeStr.trim() !== "") {
-                excludeStr.split(',').forEach(part => {
-                    let range = part.trim().split('-');
-                    if (range.length === 2) {
-                        let start = parseInt(range[0]);
-                        let end = parseInt(range[1]);
-                        if (!isNaN(start) && !isNaN(end)) {
-                            for (let i = Math.max(1, start); i <= Math.min(total, end); i++) {
-                                excludeSet.add(i);
-                            }
-                        }
-                    } else if (range.length === 1 && range[0] !== "") {
-                        let num = parseInt(range[0]);
-                        if (!isNaN(num) && num >= 1 && num <= total) {
-                            excludeSet.add(num);
-                        }
-                    }
-                });
-            }
+            excludeStr.split(',').forEach(part => {
+                let range = part.split('-');
+                if (range.length === 2) {
+                    for (let i = Math.max(1, parseInt(range[0])); i <= Math.min(total, parseInt(range[1])); i++) excludeSet.add(i);
+                } else if (range.length === 1 && range[0] !== "") {
+                    let num = parseInt(range[0]);
+                    if (num >= 1 && num <= total) excludeSet.add(num);
+                }
+            });
 
-            // 2. 筛选出需要打印的页码
             let include = [];
             for (let i = 1; i <= total; i++) {
                 if (!excludeSet.has(i)) {
+                    if (parity === 'odd' && i % 2 === 0) continue;
+                    if (parity === 'even' && i % 2 !== 0) continue;
                     include.push(i);
                 }
             }
 
-            if (include.length === 0) {
-                resultOutput.value = "";
-                errorMsg.innerText = "错误：所有页面都被排除了！";
-                errorMsg.classList.remove('hidden');
-                return;
-            }
-
-            // 3. 完美压缩连续区间
+            // 生成区间字符串
             let ranges = [];
-            let start = include[0];
-            let prev = include[0];
-
-            for (let i = 1; i < include.length; i++) {
-                if (include[i] === prev + 1) {
-                    prev = include[i];
-                } else {
-                    ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
-                    start = include[i];
-                    prev = include[i];
+            if (include.length > 0) {
+                let start = include[0], prev = include[0];
+                for (let i = 1; i <= include.length; i++) {
+                    if (include[i] !== prev + 1) {
+                        ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+                        start = include[i]; prev = include[i];
+                    } else { prev = include[i]; }
                 }
             }
-            ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
 
             resultOutput.value = ranges.join(', ');
+            stats.innerText = `总计 ${total} 页，已排除 ${excludeSet.size} 页，实际打印 ${include.length} 页`;
+        }
+
+        function resetAll() {
+            document.getElementById('totalPage').value = '';
+            document.getElementById('excludePages').value = '';
+            document.getElementById('resultContainer').classList.add('hidden');
         }
 
         function copyResult() {
-            let copyText = document.getElementById('resultOutput');
-            copyText.select();
-            navigator.clipboard.writeText(copyText.value).then(() => {
-                alert("已复制到剪贴板！");
+            let btn = document.getElementById('copyBtn');
+            navigator.clipboard.writeText(document.getElementById('resultOutput').value).then(() => {
+                let originalText = btn.innerText;
+                btn.innerText = "已复制 ✓";
+                btn.classList.replace('bg-gray-800', 'bg-green-600');
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.replace('bg-green-600', 'bg-gray-800');
+                }, 2000);
             });
         }
     </script>
