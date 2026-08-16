@@ -3,79 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 逆向页码计算器 - 专业版</title>
+    <title>PDF 逆向页码计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
-    <div class="max-w-xl w-full bg-white rounded-xl shadow-md p-6 sm:p-8">
-        <h1 class="text-2xl font-bold text-gray-800 mb-2">PDF 逆向页码计算器</h1>
-        <p class="text-gray-600 text-sm mb-6">输入页数，实时生成打印页码，支持奇偶筛选。</p>
+<body class="bg-gray-50 min-h-screen p-4 flex justify-center">
+    <div class="max-w-xl w-full bg-white rounded-xl shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4">PDF 逆向页码计算器</h1>
 
+        <!-- 关键点：input 标签添加了 oninput="runCalculation()" -->
         <div class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">PDF 总页数</label>
-                <input type="number" id="totalPage" oninput="runCalculation()" placeholder="例如：20" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="number" id="totalPage" oninput="runCalculation()" placeholder="输入总页数..." 
+                    class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
-
             <div>
                 <label class="block text-sm font-medium text-gray-700">不需要打印的页数</label>
                 <input type="text" id="excludePages" oninput="runCalculation()" placeholder="例如：1-3, 5, 7-10" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
-
-            <!-- 选项区域 -->
-            <div class="flex items-center space-x-4 text-sm text-gray-600">
-                <label class="flex items-center"><input type="radio" name="parity" value="all" checked onchange="runCalculation()" class="mr-2"> 全部</label>
-                <label class="flex items-center"><input type="radio" name="parity" value="odd" onchange="runCalculation()" class="mr-2"> 仅奇数</label>
-                <label class="flex items-center"><input type="radio" name="parity" value="even" onchange="runCalculation()" class="mr-2"> 仅偶数</label>
-                <button onclick="resetAll()" class="ml-auto text-red-500 hover:text-red-600 text-xs">清空重置</button>
+            
+            <div class="flex items-center space-x-4 text-sm">
+                <label><input type="radio" name="parity" value="all" checked onchange="runCalculation()"> 全部</label>
+                <label><input type="radio" name="parity" value="odd" onchange="runCalculation()"> 仅奇数</label>
+                <label><input type="radio" name="parity" value="even" onchange="runCalculation()"> 仅偶数</label>
+                <button onclick="resetAll()" class="text-red-500 ml-auto">清空</button>
             </div>
         </div>
 
-        <div id="resultContainer" class="mt-6 hidden">
-            <label class="block text-sm font-medium text-gray-700">可直接复制的打印页码：</label>
+        <div id="resultContainer" class="mt-6">
+            <label class="block text-sm font-medium text-gray-700">可复制的页码：</label>
             <div class="flex items-center space-x-2 mt-1">
                 <input type="text" id="resultOutput" readonly class="w-full bg-gray-100 px-3 py-2 border rounded-lg font-mono text-sm">
-                <button id="copyBtn" onclick="copyResult()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm transition">复制</button>
+                <button id="copyBtn" onclick="copyResult()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm">复制</button>
             </div>
             <p id="stats" class="text-xs text-gray-500 mt-2"></p>
-            <p id="errorMsg" class="text-xs text-red-500 mt-2 hidden"></p>
         </div>
     </div>
 
     <script>
         function runCalculation() {
-            let totalVal = document.getElementById('totalPage').value;
+            const total = parseInt(document.getElementById('totalPage').value);
             let excludeStr = document.getElementById('excludePages').value;
-            
-            // 自动清洗：中英文标点转换
+            // 自动清洗：中英文符号替换
             excludeStr = excludeStr.replace(/，/g, ',').replace(/－/g, '-').replace(/ /g, '');
             
-            const total = parseInt(totalVal);
-            const resultContainer = document.getElementById('resultContainer');
-            const resultOutput = document.getElementById('resultOutput');
-            const errorMsg = document.getElementById('errorMsg');
             const stats = document.getElementById('stats');
+            const resultOutput = document.getElementById('resultOutput');
             const parity = document.querySelector('input[name="parity"]:checked').value;
 
-            if (isNaN(total) || total <= 0) {
-                resultContainer.classList.add('hidden');
+            if (!total || total <= 0) {
+                resultOutput.value = "";
+                stats.innerText = "";
                 return;
             }
 
-            resultContainer.classList.remove('hidden');
+            // 解析排除
             let excludeSet = new Set();
             excludeStr.split(',').forEach(part => {
-                let range = part.split('-');
-                if (range.length === 2) {
-                    for (let i = Math.max(1, parseInt(range[0])); i <= Math.min(total, parseInt(range[1])); i++) excludeSet.add(i);
-                } else if (range.length === 1 && range[0] !== "") {
-                    let num = parseInt(range[0]);
-                    if (num >= 1 && num <= total) excludeSet.add(num);
+                let r = part.split('-');
+                if (r.length === 2) {
+                    for (let i = Math.max(1, parseInt(r[0])); i <= Math.min(total, parseInt(r[1])); i++) excludeSet.add(i);
+                } else if (r.length === 1 && r[0] !== "") {
+                    let n = parseInt(r[0]);
+                    if (n >= 1 && n <= total) excludeSet.add(n);
                 }
             });
 
+            // 筛选并生成
             let include = [];
             for (let i = 1; i <= total; i++) {
                 if (!excludeSet.has(i)) {
@@ -85,38 +80,32 @@
                 }
             }
 
-            // 生成区间字符串
+            // 压缩区间逻辑
             let ranges = [];
             if (include.length > 0) {
-                let start = include[0], prev = include[0];
+                let s = include[0], p = include[0];
                 for (let i = 1; i <= include.length; i++) {
-                    if (include[i] !== prev + 1) {
-                        ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
-                        start = include[i]; prev = include[i];
-                    } else { prev = include[i]; }
+                    if (include[i] !== p + 1) {
+                        ranges.push(s === p ? `${s}` : `${s}-${p}`);
+                        s = include[i]; p = include[i];
+                    } else { p = include[i]; }
                 }
             }
-
             resultOutput.value = ranges.join(', ');
-            stats.innerText = `总计 ${total} 页，已排除 ${excludeSet.size} 页，实际打印 ${include.length} 页`;
+            stats.innerText = `总共 ${total} 页，已排除 ${excludeSet.size} 页，实际打印 ${include.length} 页`;
         }
 
         function resetAll() {
             document.getElementById('totalPage').value = '';
             document.getElementById('excludePages').value = '';
-            document.getElementById('resultContainer').classList.add('hidden');
+            runCalculation();
         }
 
         function copyResult() {
-            let btn = document.getElementById('copyBtn');
+            const btn = document.getElementById('copyBtn');
             navigator.clipboard.writeText(document.getElementById('resultOutput').value).then(() => {
-                let originalText = btn.innerText;
                 btn.innerText = "已复制 ✓";
-                btn.classList.replace('bg-gray-800', 'bg-green-600');
-                setTimeout(() => {
-                    btn.innerText = originalText;
-                    btn.classList.replace('bg-green-600', 'bg-gray-800');
-                }, 2000);
+                setTimeout(() => btn.innerText = "复制", 2000);
             });
         }
     </script>
